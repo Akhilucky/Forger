@@ -67,7 +67,16 @@ forge run data.csv data.json
 forge run customers.csv customers_clean.csv --mode anonymize
 
 # Generate 1K records from column specs
-forge generate --columns "name,email,age,salary,city" --count 1000 --output data.json
+forge generate --columns "name,email,age,salary,city" --count 1000 -o data.json
+
+# Generate a 1GB CSV file (streaming, no memory limit)
+forge generate --columns "name,email,age,salary,city,company" --size 1GB -o huge.csv --format csv
+
+# Start a mock API server
+forge mock
+
+# Mock API with custom schema
+forge mock --columns "id,name,email,age,city" --port 8080
 
 # Generate from specs + learn patterns from a sample
 forge generate --columns "name,email,age" --sample existing.csv --count 5000
@@ -107,7 +116,57 @@ records = engine.generate_from_spec(
     ],
     count=500,
 )
+
+# Stream huge dataset to disk
+from forge.generator.stream import generate_huge
+generate_huge(
+    columns=[{"name": "name"}, {"name": "email"}, {"name": "age"}],
+    destination="test_data.csv",
+    target_size="100MB",
+    fmt="csv",
+)
 ```
+
+### Mock API
+
+```bash
+# Start server — endpoints auto-create from any plural noun
+forge mock
+
+# In another terminal:
+curl http://localhost:8000/users          # 10 random users
+curl http://localhost:8000/users/5         # single user with id=5
+curl http://localhost:8000/products        # 10 random products
+curl http://localhost:8000/products?count=50  # 50 products
+curl http://localhost:8000/orders          # auto-schema for "orders"
+curl http://localhost:8000/customers       # auto-schema for "customers"
+
+# Custom column schema for all endpoints
+forge mock --columns "id,name,email,age,city,company,title"
+
+# Custom schema per endpoint (YAML file)
+forge mock --schema schemas.yaml
+
+# POST requests echo back as "created"
+curl -X POST http://localhost:8000/users -H 'Content-Type: application/json' \
+  -d '{"name": "New User"}'
+```
+
+### Huge Test Files
+
+```bash
+# Target file size, not row count
+forge generate --columns "name,email,age,salary,city,company" --size 1GB -o test.csv --format csv
+
+# NDJSON for easy line-by-line processing
+forge generate --columns "id,name,email" --size 500MB -o test.ndjson --format ndjson
+
+# SQL dump
+forge generate --columns "id,name,email" --size 100MB -o test.sql --format sql
+```
+
+The `--size` flag uses row-by-row streaming, so it never loads the full dataset into memory.
+A progress indicator shows rows written and current file size.
 
 ### Formats
 
@@ -130,7 +189,8 @@ records = engine.generate_from_spec(
 
 | Mode | Description |
 |---|---|
-| **generate** | Create datasets from scratch using just column names — infers realistic data types from field names (name, email, city → appropriate values) |
+| **generate** | Create datasets from scratch using just column names — infers realistic types, supports `--size` for huge files, `--iterations` for quality |
+| **mock** | Start a local mock API server — each plural noun becomes an auto-generated endpoint |
 | **synthesize** | Generate statistically realistic synthetic data from an existing schema |
 | **anonymize** | Remove or replace PII (emails, phones, SSNs, IPs) while preserving structure |
 | **repair** | Fix missing values, correct types, normalize formats |

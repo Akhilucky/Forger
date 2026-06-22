@@ -6,7 +6,7 @@ from forge.core.plugin import Registry
 
 
 @click.group(invoke_without_command=True)
-@click.version_option(version="0.1.0", prog_name="forge")
+@click.version_option(version="0.2.0", prog_name="forge")
 @click.pass_context
 def cli(ctx):
     if ctx.invoked_subcommand is None:
@@ -104,8 +104,8 @@ def synthesize(source, fmt, count):
 
 
 @cli.command()
-@click.option("-o", "--output", default=None, help="Output file (optional)")
-@click.option("--format", "fmt", default="json", help="Output format (json, csv, yaml)")
+@click.option("-o", "--output", default=None, help="Output file")
+@click.option("--format", "fmt", default="json", help="Output format (json, csv, yaml, ndjson, sql)")
 @click.option("--count", type=int, default=10, help="Number of records to generate")
 @click.option("--columns", "cols", required=True,
               help="Column spec: 'name:type,name:type,...' or 'name,name,...'")
@@ -117,10 +117,24 @@ def synthesize(source, fmt, count):
               help="Use tiny local LLM (ollama/llama.cpp) for generation")
 @click.option("--model", help="Path to llama.cpp model (requires --llm)")
 @click.option("--show", is_flag=True, default=False, help="Print generated records")
-def generate(output, fmt, count, cols, sample, iterations, llm, model, show):
-    """Generate datasets from column specifications."""
-    from forge.generator.engine import Engine
+@click.option("--size",
+              help="Target file size (e.g. '100MB', '10GB'). Uses streaming, no memory limit.")
+@click.option("--progress/--no-progress", default=True, help="Show generation progress")
+def generate(output, fmt, count, cols, sample, iterations, llm, model, show, size, progress):
+    """Generate datasets from column specifications.
 
+    Create realistic data from scratch. Supports huge files via --size (streaming).
+
+    Examples:
+
+        forge generate --columns "name,email,age" --count 100
+
+        forge generate --columns "name,email,age" -o data.csv --format csv --count 50000
+
+        forge generate --columns "name,email,age,salary,city" --size 1GB -o big.csv --format csv
+
+        forge generate --columns "name,email,age" --sample existing.csv --iterations 3
+    """
     columns = []
     for col_spec in cols.split(","):
         col_spec = col_spec.strip()
@@ -130,6 +144,8 @@ def generate(output, fmt, count, cols, sample, iterations, llm, model, show):
         else:
             columns.append({"name": col_spec, "type": "string"})
 
+    from forge.generator.engine import Engine
+
     engine = Engine()
     sample_records = []
     if sample:
@@ -137,7 +153,18 @@ def generate(output, fmt, count, cols, sample, iterations, llm, model, show):
         engine.learn(sample_records)
         click.echo(f"✓ Learned from {len(sample_records)} sample records", err=True)
 
-    kwargs = {"count": count, "llm": llm, "model": model, "iterations": iterations}
+    if size:
+        from forge.generator.stream import generate_huge
+        generate_huge(
+            columns=columns,
+            destination=output,
+            target_size=size,
+            fmt=fmt,
+            sample=sample_records,
+            progress=progress,
+        )
+        return
+
     records = engine.generate_from_spec(columns, count, llm, model)
 
     if iterations > 1 and sample_records:
@@ -148,12 +175,13 @@ def generate(output, fmt, count, cols, sample, iterations, llm, model, show):
         click.echo(f"✓ Self-iterated {iterations}x for quality", err=True)
 
     if output:
-        dest_pipe = Pipeline()
-        dest_pipe._records = records
-        writer = Registry.get_writer(fmt or "json")
+        writer = Registry.get_writer(fmt)
         if writer:
             writer().write(records, output)
             click.echo(f"✓ Generated {len(records)} records → {output}")
+        else:
+            click.echo(f"✗ No writer for format: {fmt}", err=True)
+            sys.exit(1)
     elif show or not output:
         import json as j
         click.echo(j.dumps(records, indent=2, default=str))
@@ -161,6 +189,55 @@ def generate(output, fmt, count, cols, sample, iterations, llm, model, show):
         click.echo(f"✓ Generated {len(records)} records")
 
     return records
+
+
+@cli.command()
+@click.option("-p", "--port", default=8000, type=int, help="Port to listen on")
+@click.option("--columns", "cols", help="Column spec for all endpoints (optional)")
+@click.option("--schema", type=click.Path(exists=True),
+              help="YAML file mapping endpoints to column schemas")
+@click.option("--count", type=int, default=10,
+              help="Default records per request")
+def mock(port, cols, schema, count):
+    """Start a mock API server with auto-generated endpoints.
+
+    Each plural noun becomes an endpoint (e.g. /users, /products, /orders).
+    Query with ?count=N to control response size.
+
+    Examples:
+
+        forge mock
+
+        forge mock --port 8080
+
+        forge mock --columns "id,name,email,age,city"
+
+        curl http://localhost:8000/users
+
+        curl http://localhost:8000/users/5
+
+        curl http://localhost:8000/products?count=50
+    """
+    from forge.server import start_mock_server, MOCK_ENDPOINTS
+
+    column_list = None
+    if cols:
+        column_list = []
+        for col_spec in cols.split(","):
+            col_spec = col_spec.strip()
+            if ":" in col_spec:
+                name, typ = col_spec.split(":", 1)
+                column_list.append({"name": name.strip(), "type": typ.strip()})
+            else:
+                column_list.append({"name": col_spec, "type": "string"})
+
+    if schema:
+        click.echo(f"✓ Loading schema from {schema}", err=True)
+
+    if cols and not schema:
+        click.echo(f"✓ Serving single schema on all endpoints", err=True)
+
+    start_mock_server(port=port, columns=column_list, schema_file=schema)
 
 
 if __name__ == "__main__":
