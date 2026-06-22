@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "forge"
+version = "0.1.0"
+description = "Universal data compiler — transform any data into production-ready datasets"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+  { name = "Forge Contributors" },
+]
+keywords = ["data", "etl", "synthetic-data", "data-conversion", "anonymization"]
+
+dependencies = [
+  "click>=8.0",
+  "pandas>=2.0",
+]
+
+[project.urls]
+Home = "https://github.com/Akhilucky/Faker"
+Documentation = "https://github.com/Akhilucky/Faker"
+Source = "https://github.com/Akhilucky/Faker"
+
+[project.scripts]
+forge = "forge.cli:cli"
+
+[project.optional-dependencies]
+xlsx = ["openpyxl>=3.0"]
+yaml = ["pyyaml>=6.0"]
+parquet = ["pyarrow>=10.0"]
+xml = ["lxml>=4.9"]
+all = [
+  "openpyxl>=3.0",
+  "pyyaml>=6.0",
+  "pyarrow>=10.0",
+  "lxml>=4.9",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["forge"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
