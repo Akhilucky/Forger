@@ -66,8 +66,14 @@ forge run data.csv data.json
 # Apply anonymization
 forge run customers.csv customers_clean.csv --mode anonymize
 
-# Synthesize 10K records from a schema
-forge run schema.csv generated.json --mode synthesize --count 10000
+# Generate 1K records from column specs
+forge generate --columns "name,email,age,salary,city" --count 1000 --output data.json
+
+# Generate from specs + learn patterns from a sample
+forge generate --columns "name,email,age" --sample existing.csv --count 5000
+
+# Self-iterate for quality
+forge generate --columns "name,email,age" --count 100 --iterations 3
 
 # Scale 100 rows → 1M rows
 forge run small.csv big.parquet --mode scale --count 1000000
@@ -88,6 +94,18 @@ records = (
     .apply("enrich")
     .write("clean_data.json")
     .run()
+)
+
+# Or generate from scratch
+from forge.generator.engine import Engine
+engine = Engine()
+records = engine.generate_from_spec(
+    columns=[
+        {"name": "name", "type": "string"},
+        {"name": "email", "type": "string"},
+        {"name": "age", "type": "integer"},
+    ],
+    count=500,
 )
 ```
 
@@ -112,6 +130,7 @@ records = (
 
 | Mode | Description |
 |---|---|
+| **generate** | Create datasets from scratch using just column names — infers realistic data types from field names (name, email, city → appropriate values) |
 | **synthesize** | Generate statistically realistic synthetic data from an existing schema |
 | **anonymize** | Remove or replace PII (emails, phones, SSNs, IPs) while preserving structure |
 | **repair** | Fix missing values, correct types, normalize formats |
@@ -120,6 +139,34 @@ records = (
 | **compress** | Reduce large datasets while preserving representative behavior |
 | **enrich** | Add IDs, checksums, timestamps and metadata |
 | **stress** | Generate edge cases, injections, and adversarial inputs for robustness testing |
+
+## Intelligent Generation
+
+The `generate` engine understands column names to produce contextually appropriate data:
+
+| Column name hint | Generates |
+|---|---|
+| `name`, `first_name`, `last_name` | Realistic person names |
+| `email` | Realistic email addresses |
+| `phone`, `mobile` | US phone numbers |
+| `address`, `street` | Street addresses |
+| `city`, `state`, `country`, `zip` | Geographic data |
+| `company`, `organization` | Company names |
+| `job`, `title`, `role` | Job titles |
+| `age` | Ages (18–80) |
+| `price`, `salary`, `cost` | Financial values |
+| `url`, `website` | URLs |
+| `description`, `comment`, `notes` | Descriptive paragraphs |
+| `category`, `type`, `status` | Categorical values |
+| `date`, `created_at`, `timestamp` | Date/time strings |
+| `gender` | Gender values |
+
+From sample data, it additionally infers:
+- **Distributions** — normal, categorical, or uniform
+- **Patterns** — regex-based structural templates
+- **Correlations** — preserves relationships between numeric columns
+
+Optional LLM backend (`--llm` flag) uses **tiny local models** (Phi-3, Llama-3.2-3B via Ollama or llama.cpp) for even more realistic generation — zero API costs.
 
 ## Philosophy
 

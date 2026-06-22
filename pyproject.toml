@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "forge"
-version = "0.1.0"
+version = "0.2.0"
 description = "Universal data compiler — transform any data into production-ready datasets"
 readme = "README.md"
 license = { text = "MIT" }
