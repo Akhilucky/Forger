@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Akhilucky/Faker/main/.github/banner-dark.svg">
-    <img alt="Forge" src="https://raw.githubusercontent.com/Akhilucky/Faker/main/.github/banner-light.svg" width="600">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Akhilucky/Forger/main/.github/banner-dark.svg">
+    <img alt="Forge" src="https://raw.githubusercontent.com/Akhilucky/Forger/main/.github/banner-light.svg" width="600">
   </picture>
 </p>
 

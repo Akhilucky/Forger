@@ -20,9 +20,9 @@ dependencies = [
 ]
 
 [project.urls]
-Home = "https://github.com/Akhilucky/Faker"
-Documentation = "https://github.com/Akhilucky/Faker"
-Source = "https://github.com/Akhilucky/Faker"
+Home = "https://github.com/Akhilucky/Forger"
+Documentation = "https://github.com/Akhilucky/Forger"
+Source = "https://github.com/Akhilucky/Forger"
 
 [project.scripts]
 forge = "forge.cli:cli"
