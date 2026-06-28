@@ -12,24 +12,25 @@
 <p align="center">
   <a href="#installation"><b>Install</b></a>
   •
-  <a href="#usage"><b>Usage</b></a>
+  <a href="#cli-reference"><b>Commands</b></a>
   •
   <a href="#modes"><b>Modes</b></a>
   •
   <a href="#formats"><b>Formats</b></a>
   •
-  <a href="#development"><b>Development</b></a>
+  <a href="#intelligent-generation"><b>Generation</b></a>
 </p>
 
 <p align="center">
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-blue">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20linux-lightgrey">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-78%20passing-brightgreen">
 </p>
 
 ---
 
-Forge doesn't simply generate fake data. It **analyzes, learns, restructures, repairs, anonymizes, enriches, converts, scales and synthesizes** data while preserving its meaning and behavior.
+Forge doesn't simply generate fake data. It **analyzes, learns, restructures, repairs, anonymizes, enriches, converts, scales, synthesizes, validates, profiles, diffs, streams, and mocks** data while preserving its meaning and behavior.
 
 | You give it | It gives you |
 |---|---|
@@ -37,7 +38,8 @@ Forge doesn't simply generate fake data. It **analyzes, learns, restructures, re
 | A JSON API dump | An anonymized Parquet file |
 | A broken spreadsheet | A clean, typed dataset |
 | 100 rows of data | 10M rows with realistic distributions |
-| Production logs | A synthetic training corpus |
+| Column names | A million-row test file |
+| A sentence | A structured dataset |
 
 ## Installation
 
@@ -45,130 +47,178 @@ Forge doesn't simply generate fake data. It **analyzes, learns, restructures, re
 pip install forge
 ```
 
-With format support:
+Optional features:
 
 ```bash
-pip install "forge[all]"        # everything
-pip install "forge[xlsx]"       # Excel support
-pip install "forge[yaml]"       # YAML support
-pip install "forge[parquet]"    # Parquet support
-pip install "forge[xml]"        # XML support
+pip install "forge[all]"         # everything below
+pip install "forge[xlsx]"        # Excel support
+pip install "forge[yaml]"        # YAML pipelines & schemas
+pip install "forge[parquet]"     # Parquet format
+pip install "forge[xml]"         # XML format
+pip install "forge[postgres]"    # PostgreSQL reader/writer
+pip install "forge[mysql]"       # MySQL reader
+pip install "forge[bigquery]"    # Google BigQuery reader
+pip install "forge[websocket]"   # WebSocket stream server
+pip install "forge[watch]"       # File watching
 ```
 
-## Usage
+## CLI Reference
 
-### CLI
+### `forge generate`
+
+Create datasets from column specs, natural language prompts, or sample files.
 
 ```bash
-# Convert CSV → JSON
-forge run data.csv data.json
+# From column names (infers types automatically)
+forge generate --columns "name,email,age,salary,city" --count 100 -o data.json
 
-# Apply anonymization
+# From a natural language description
+forge generate --prompt "e-commerce customers with order history" --count 500
+
+# Huge streaming files (no memory limit)
+forge generate --columns "name,email,age" --size 1GB -o test.csv --format csv
+
+# Learn patterns from existing data
+forge generate --columns "name,email,age" --sample existing.csv --iterations 3
+
+# Export as test fixtures
+forge generate --columns "name,email,age" --count 5 --fixture pytest -o conftest.py
+forge generate --columns "name,email,age" --count 5 --fixture typescript -o types.ts
+
+# Use tiny local LLM for smarter generation
+forge generate --columns "name,email,bio" --count 10 --llm
+```
+
+### `forge run`
+
+Compile data or execute multi-step pipelines.
+
+```bash
+# One-shot conversion
+forge run data.csv data.parquet
 forge run customers.csv customers_clean.csv --mode anonymize
 
-# Generate 1K records from column specs
-forge generate --columns "name,email,age,salary,city" --count 1000 -o data.json
+# Multi-step pipeline from YAML
+forge run pipeline.yaml
+```
 
-# Generate a 1GB CSV file (streaming, no memory limit)
-forge generate --columns "name,email,age,salary,city,company" --size 1GB -o huge.csv --format csv
+Example `pipeline.yaml`:
 
-# Start a mock API server
-forge mock
+```yaml
+steps:
+  - read: customers.csv
+  - mode: anonymize
+    columns: [email, phone, ssn]
+  - mode: enrich
+  - write: customers_clean.parquet
+```
 
-# Mock API with custom schema
-forge mock --columns "id,name,email,age,city" --port 8080
+### `forge profile`
 
-# Generate from specs + learn patterns from a sample
-forge generate --columns "name,email,age" --sample existing.csv --count 5000
+Generate an HTML data profile report — distributions, types, null ratios, top values.
 
-# Self-iterate for quality
-forge generate --columns "name,email,age" --count 100 --iterations 3
+```bash
+forge profile data.csv -o report.html
+forge profile large_data.parquet --title "Sales Data Overview"
+```
 
-# Scale 100 rows → 1M rows
-forge run small.csv big.parquet --mode scale --count 1000000
+### `forge diff`
 
-# Inspect a dataset
+Structurally compare two datasets.
+
+```bash
+forge diff old.csv new.csv
+forge diff a.json b.json --key id    # key-based row matching
+```
+
+Reports: schema changes, row additions/removals, distribution shifts.
+
+### `forge validate`
+
+Validate datasets against rules.
+
+```bash
+forge validate data.csv --required "name,email" --unique "id,email"
+forge validate data.csv --schema validation_rules.yaml
+```
+
+Example `rules.yaml`:
+```yaml
+- column: age
+  required: true
+  min: 0
+  max: 120
+  type: integer
+- column: email
+  required: true
+  pattern: "@"
+  unique: true
+```
+
+### `forge mock`
+
+Start a local mock API server. Every plural noun becomes an endpoint.
+
+```bash
+forge mock                              # http://localhost:8000
+forge mock --port 8080                  # custom port
+forge mock --columns "id,name,email,age,city,company"
+forge mock --schema schemas.yaml        # per-endpoint schemas
+
+# Endpoints auto-create:
+curl http://localhost:8000/users          # → 10 random users
+curl http://localhost:8000/products       # → 10 random products
+curl http://localhost:8000/orders         # → 10 random orders
+curl http://localhost:8000/users/5        # → single user
+curl http://localhost:8000/products?count=50
+```
+
+Built-in schemas: users, products, orders, customers, transactions, employees, posts.
+
+### `forge watch`
+
+Watch a file and re-process on every change.
+
+```bash
+forge watch data.csv output.csv --mode anonymize
+forge watch logs/input.json output.parquet --interval 2
+```
+
+### `forge stream`
+
+WebSocket server that streams generated records in real-time.
+
+```bash
+forge stream --port 8765 --columns "id,name,price,timestamp"
+# Connect: ws://localhost:8765
+# Receives 1 JSON record per second
+```
+
+### `forge shell`
+
+Interactive Python REPL with Forge pre-loaded.
+
+```bash
+forge shell
+>>> read("data.csv")
+>>> gen(["name", "email", "age"], 10)
+>>> profile(records, "My Data")
+```
+
+### `forge inspect`
+
+Quick schema preview of any dataset.
+
+```bash
 forge inspect data.csv
+forge inspect data.parquet --head 20
 ```
 
-### Python API
+### `forge formats`
 
-```python
-from forge.core.pipeline import Pipeline
+List all supported read/write formats.
 
-records = (
-    Pipeline()
-    .read("data.csv")
-    .apply("anonymize", columns=["email", "phone"])
-    .apply("enrich")
-    .write("clean_data.json")
-    .run()
-)
-
-# Or generate from scratch
-from forge.generator.engine import Engine
-engine = Engine()
-records = engine.generate_from_spec(
-    columns=[
-        {"name": "name", "type": "string"},
-        {"name": "email", "type": "string"},
-        {"name": "age", "type": "integer"},
-    ],
-    count=500,
-)
-
-# Stream huge dataset to disk
-from forge.generator.stream import generate_huge
-generate_huge(
-    columns=[{"name": "name"}, {"name": "email"}, {"name": "age"}],
-    destination="test_data.csv",
-    target_size="100MB",
-    fmt="csv",
-)
-```
-
-### Mock API
-
-```bash
-# Start server — endpoints auto-create from any plural noun
-forge mock
-
-# In another terminal:
-curl http://localhost:8000/users          # 10 random users
-curl http://localhost:8000/users/5         # single user with id=5
-curl http://localhost:8000/products        # 10 random products
-curl http://localhost:8000/products?count=50  # 50 products
-curl http://localhost:8000/orders          # auto-schema for "orders"
-curl http://localhost:8000/customers       # auto-schema for "customers"
-
-# Custom column schema for all endpoints
-forge mock --columns "id,name,email,age,city,company,title"
-
-# Custom schema per endpoint (YAML file)
-forge mock --schema schemas.yaml
-
-# POST requests echo back as "created"
-curl -X POST http://localhost:8000/users -H 'Content-Type: application/json' \
-  -d '{"name": "New User"}'
-```
-
-### Huge Test Files
-
-```bash
-# Target file size, not row count
-forge generate --columns "name,email,age,salary,city,company" --size 1GB -o test.csv --format csv
-
-# NDJSON for easy line-by-line processing
-forge generate --columns "id,name,email" --size 500MB -o test.ndjson --format ndjson
-
-# SQL dump
-forge generate --columns "id,name,email" --size 100MB -o test.sql --format sql
-```
-
-The `--size` flag uses row-by-row streaming, so it never loads the full dataset into memory.
-A progress indicator shows rows written and current file size.
-
-### Formats
+## Formats
 
 | Format | Read | Write |
 |---|---|---|
@@ -184,21 +234,24 @@ A progress indicator shows rows written and current file size.
 | Markdown | ✓ | ✓ |
 | HTML | ✓ | |
 | Plain text | ✓ | |
+| PostgreSQL | ✓ | ✓ |
+| MySQL | ✓ | |
+| BigQuery | ✓ | |
 
 ## Modes
 
 | Mode | Description |
 |---|---|
-| **generate** | Create datasets from scratch using just column names — infers realistic types, supports `--size` for huge files, `--iterations` for quality |
-| **mock** | Start a local mock API server — each plural noun becomes an auto-generated endpoint |
-| **synthesize** | Generate statistically realistic synthetic data from an existing schema |
-| **anonymize** | Remove or replace PII (emails, phones, SSNs, IPs) while preserving structure |
-| **repair** | Fix missing values, correct types, normalize formats |
+| **generate** | Create datasets from scratch — column names, prompts, or samples |
+| **mock** | Start a local mock API server (auto-endpoints from plural nouns) |
+| **synthesize** | Generate statistically realistic synthetic data from a schema |
+| **anonymize** | Remove or replace PII (emails, phones, SSNs, IPs) |
+| **repair** | Fix missing values, correct types, normalize |
 | **convert** | Translate between formats without losing semantics |
-| **scale** | Expand datasets from hundreds to millions of rows with realistic distributions |
-| **compress** | Reduce large datasets while preserving representative behavior |
-| **enrich** | Add IDs, checksums, timestamps and metadata |
-| **stress** | Generate edge cases, injections, and adversarial inputs for robustness testing |
+| **scale** | Expand datasets to millions of rows with realistic distributions |
+| **compress** | Reduce datasets while preserving representative behavior |
+| **enrich** | Add IDs, checksums, timestamps, metadata |
+| **stress** | Generate edge cases, injections, adversarial inputs |
 
 ## Intelligent Generation
 

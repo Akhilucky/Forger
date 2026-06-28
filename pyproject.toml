@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "forge"
-version = "0.2.0"
+version = "0.4.0"
 description = "Universal data compiler — transform any data into production-ready datasets"
 readme = "README.md"
 license = { text = "MIT" }
@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 authors = [
   { name = "Forge Contributors" },
 ]
-keywords = ["data", "etl", "synthetic-data", "data-conversion", "anonymization"]
+keywords = ["data", "etl", "synthetic-data", "data-conversion", "anonymization", "mock-api"]
 
 dependencies = [
   "click>=8.0",
@@ -32,11 +32,15 @@ xlsx = ["openpyxl>=3.0"]
 yaml = ["pyyaml>=6.0"]
 parquet = ["pyarrow>=10.0"]
 xml = ["lxml>=4.9"]
+postgres = ["psycopg2-binary>=2.9"]
+mysql = ["mysql-connector-python>=8.0"]
+bigquery = ["google-cloud-bigquery>=3.0"]
+websocket = ["websockets>=12.0"]
+watch = ["watchfiles>=0.20"]
 all = [
-  "openpyxl>=3.0",
-  "pyyaml>=6.0",
-  "pyarrow>=10.0",
-  "lxml>=4.9",
+  "openpyxl>=3.0", "pyyaml>=6.0", "pyarrow>=10.0", "lxml>=4.9",
+  "psycopg2-binary>=2.9", "mysql-connector-python>=8.0",
+  "google-cloud-bigquery>=3.0", "websockets>=12.0", "watchfiles>=0.20",
 ]
 
 [tool.hatch.build.targets.wheel]
